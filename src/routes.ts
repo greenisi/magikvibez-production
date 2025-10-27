@@ -3,6 +3,7 @@ import React from 'react';
 
 import App from './App';
 import Home from './routes/home';
+import Marketing from './routes/marketing';
 import Chat from './routes/chat/chat';
 import Profile from './routes/profile';
 import Settings from './routes/settings/index';
@@ -19,6 +20,10 @@ const routes = [
 			{
 				index: true,
 				Component: Home,
+			},
+			{
+				path: 'marketing',
+				Component: Marketing,
 			},
 			{
 				path: 'chat/:chatId',

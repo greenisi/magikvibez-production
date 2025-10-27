@@ -153,6 +153,77 @@ export const AGENT_CONFIG: AgentConfig = {
         temperature: 0.1,
         fallbackModel: AIModels.GEMINI_2_5_FLASH,
     },
+    // Business AI Platform Actions
+    intent_detection: {
+        name: AIModels.GEMINI_2_5_FLASH_LITE,
+        reasoning_effort: 'low',
+        max_tokens: 100,
+        temperature: 0.1,
+        fallbackModel: AIModels.GEMINI_2_5_FLASH,
+    },
+    sentiment_analysis: {
+        name: AIModels.GEMINI_2_5_FLASH_LITE,
+        reasoning_effort: 'low',
+        max_tokens: 50,
+        temperature: 0.1,
+        fallbackModel: AIModels.GEMINI_2_5_FLASH,
+    },
+    language_detection: {
+        name: AIModels.GEMINI_2_5_FLASH_LITE,
+        reasoning_effort: 'low',
+        max_tokens: 50,
+        temperature: 0.1,
+        fallbackModel: AIModels.GEMINI_2_5_FLASH,
+    },
+    conversation_response: {
+        name: AIModels.GEMINI_2_5_PRO,
+        reasoning_effort: 'medium',
+        max_tokens: 2048,
+        temperature: 0.7,
+        fallbackModel: AIModels.GEMINI_2_5_FLASH,
+    },
+    summarization: {
+        name: AIModels.GEMINI_2_5_FLASH,
+        reasoning_effort: 'low',
+        max_tokens: 500,
+        temperature: 0.3,
+        fallbackModel: AIModels.GEMINI_2_5_PRO,
+    },
+    document_extraction: {
+        name: AIModels.GEMINI_2_5_PRO,
+        reasoning_effort: 'medium',
+        max_tokens: 8000,
+        temperature: 0.1,
+        fallbackModel: AIModels.GEMINI_2_5_FLASH,
+    },
+    marketing_content: {
+        name: AIModels.GEMINI_2_5_PRO,
+        reasoning_effort: 'medium',
+        max_tokens: 4000,
+        temperature: 0.8,
+        fallbackModel: AIModels.GEMINI_2_5_FLASH,
+    },
+    customer_service_response: {
+        name: AIModels.GEMINI_2_5_FLASH,
+        reasoning_effort: 'low',
+        max_tokens: 2000,
+        temperature: 0.6,
+        fallbackModel: AIModels.GEMINI_2_5_PRO,
+    },
+    data_analysis: {
+        name: AIModels.GEMINI_2_5_PRO,
+        reasoning_effort: 'high',
+        max_tokens: 8000,
+        temperature: 0.2,
+        fallbackModel: AIModels.GEMINI_2_5_FLASH,
+    },
+    workflow_planning: {
+        name: AIModels.GEMINI_2_5_PRO,
+        reasoning_effort: 'medium',
+        max_tokens: 4000,
+        temperature: 0.3,
+        fallbackModel: AIModels.GEMINI_2_5_FLASH,
+    },
 };
 
 

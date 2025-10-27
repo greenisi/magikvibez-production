@@ -613,3 +613,387 @@ export type NewUserModelProvider = typeof userModelProviders.$inferInsert;
 
 export type Star = typeof stars.$inferSelect;
 export type NewStar = typeof stars.$inferInsert;
+
+// ========================================
+// BUSINESS AI PLATFORM EXTENSIONS
+// ========================================
+
+/**
+ * Businesses table - Multi-tenant business organizations
+ */
+export const businesses = sqliteTable('businesses', {
+    id: text('id').primaryKey(),
+    ownerUserId: text('owner_user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+
+    // Business Identity
+    name: text('name').notNull(),
+    industry: text('industry', {
+        enum: ['general', 'hvac', 'plumbing', 'electrical', 'legal', 'medical', 'dental',
+               'restaurant', 'retail', 'ecommerce', 'real_estate', 'other']
+    }).default('general'),
+
+    // Branding
+    logoUrl: text('logo_url'),
+    primaryColor: text('primary_color'),
+    customDomain: text('custom_domain'),
+
+    // Subscription
+    planTier: text('plan_tier', {
+        enum: ['free', 'starter', 'professional', 'enterprise', 'reseller']
+    }).notNull().default('free'),
+    billingStatus: text('billing_status', {
+        enum: ['active', 'past_due', 'canceled', 'trialing']
+    }).default('trialing'),
+
+    // Settings and Configuration
+    settings: text('settings', { mode: 'json' }).default('{}'),
+    enabledFeatures: text('enabled_features', { mode: 'json' }).default('[]'),
+
+    // Metadata
+    createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`CURRENT_TIMESTAMP`),
+    updatedAt: integer('updated_at', { mode: 'timestamp' }).default(sql`CURRENT_TIMESTAMP`),
+    trialEndsAt: integer('trial_ends_at', { mode: 'timestamp' }),
+    deletedAt: integer('deleted_at', { mode: 'timestamp' }),
+}, (table) => ({
+    ownerIdx: index('businesses_owner_idx').on(table.ownerUserId),
+    planIdx: index('businesses_plan_idx').on(table.planTier),
+    industryIdx: index('businesses_industry_idx').on(table.industry),
+}));
+
+/**
+ * Business Members table - Team members with role-based access
+ */
+export const businessMembers = sqliteTable('business_members', {
+    id: text('id').primaryKey(),
+    businessId: text('business_id').notNull().references(() => businesses.id, { onDelete: 'cascade' }),
+    userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+
+    // Role and Permissions
+    role: text('role', { enum: ['owner', 'admin', 'member', 'viewer'] }).notNull().default('member'),
+    permissions: text('permissions', { mode: 'json' }).default('{}'),
+
+    // Status
+    invitedAt: integer('invited_at', { mode: 'timestamp' }).default(sql`CURRENT_TIMESTAMP`),
+    joinedAt: integer('joined_at', { mode: 'timestamp' }),
+    leftAt: integer('left_at', { mode: 'timestamp' }),
+}, (table) => ({
+    businessUserIdx: uniqueIndex('business_members_business_user_idx').on(table.businessId, table.userId),
+    businessIdx: index('business_members_business_idx').on(table.businessId),
+    userIdx: index('business_members_user_idx').on(table.userId),
+}));
+
+/**
+ * Conversations table - AI agent conversations
+ */
+export const conversations = sqliteTable('conversations', {
+    id: text('id').primaryKey(),
+    userId: text('user_id').references(() => users.id, { onDelete: 'cascade' }),
+    businessId: text('business_id').references(() => businesses.id, { onDelete: 'cascade' }),
+
+    // Agent Information
+    agentType: text('agent_type', {
+        enum: ['conversation', 'document', 'marketing', 'customer_service', 'data_analysis', 'workflow', 'code']
+    }).notNull(),
+    agentInstanceId: text('agent_instance_id').notNull(), // Durable Object ID
+
+    // Conversation Details
+    title: text('title').notNull(),
+    contextSummary: text('context_summary'),
+    metadata: text('metadata', { mode: 'json' }).default('{}'),
+
+    // Status
+    isArchived: integer('is_archived', { mode: 'boolean' }).default(false),
+
+    // Metadata
+    createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`CURRENT_TIMESTAMP`),
+    updatedAt: integer('updated_at', { mode: 'timestamp' }).default(sql`CURRENT_TIMESTAMP`),
+    archivedAt: integer('archived_at', { mode: 'timestamp' }),
+}, (table) => ({
+    userIdx: index('conversations_user_idx').on(table.userId),
+    businessIdx: index('conversations_business_idx').on(table.businessId),
+    agentTypeIdx: index('conversations_agent_type_idx').on(table.agentType),
+    agentInstanceIdx: index('conversations_agent_instance_idx').on(table.agentInstanceId),
+}));
+
+/**
+ * Messages table - Individual messages in conversations
+ */
+export const messages = sqliteTable('messages', {
+    id: text('id').primaryKey(),
+    conversationId: text('conversation_id').notNull().references(() => conversations.id, { onDelete: 'cascade' }),
+
+    // Message Content
+    role: text('role', { enum: ['user', 'assistant', 'system'] }).notNull(),
+    content: text('content').notNull(),
+
+    // Metadata
+    metadata: text('metadata', { mode: 'json' }).default('{}'), // tokens, model, attachments, citations
+    tokensUsed: integer('tokens_used'),
+    modelUsed: text('model_used'),
+
+    // Timing
+    createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`CURRENT_TIMESTAMP`),
+}, (table) => ({
+    conversationIdx: index('messages_conversation_idx').on(table.conversationId),
+    roleIdx: index('messages_role_idx').on(table.role),
+    createdAtIdx: index('messages_created_at_idx').on(table.createdAt),
+}));
+
+/**
+ * Documents table - Uploaded documents for processing and RAG
+ */
+export const documents = sqliteTable('documents', {
+    id: text('id').primaryKey(),
+    userId: text('user_id').references(() => users.id, { onDelete: 'cascade' }),
+    businessId: text('business_id').references(() => businesses.id, { onDelete: 'cascade' }),
+
+    // File Information
+    name: text('name').notNull(),
+    fileType: text('file_type').notNull(), // pdf, docx, xlsx, png, jpg, etc.
+    fileSize: integer('file_size').notNull(), // bytes
+    r2Key: text('r2_key').notNull(), // R2 storage path
+
+    // Processing Status
+    processingStatus: text('processing_status', {
+        enum: ['pending', 'processing', 'completed', 'failed']
+    }).notNull().default('pending'),
+    errorMessage: text('error_message'),
+
+    // Extracted Data
+    extractedData: text('extracted_data', { mode: 'json' }),
+    vectorized: integer('vectorized', { mode: 'boolean' }).default(false),
+
+    // Metadata
+    metadata: text('metadata', { mode: 'json' }).default('{}'),
+    createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`CURRENT_TIMESTAMP`),
+    processedAt: integer('processed_at', { mode: 'timestamp' }),
+}, (table) => ({
+    userIdx: index('documents_user_idx').on(table.userId),
+    businessIdx: index('documents_business_idx').on(table.businessId),
+    statusIdx: index('documents_status_idx').on(table.processingStatus),
+    vectorizedIdx: index('documents_vectorized_idx').on(table.vectorized),
+}));
+
+/**
+ * Knowledge Base Entries table - RAG chunks with embeddings
+ */
+export const knowledgeBaseEntries = sqliteTable('knowledge_base_entries', {
+    id: text('id').primaryKey(),
+    businessId: text('business_id').notNull().references(() => businesses.id, { onDelete: 'cascade' }),
+    sourceDocumentId: text('source_document_id').references(() => documents.id, { onDelete: 'cascade' }),
+
+    // Content
+    contentChunk: text('content_chunk').notNull(),
+    embeddingId: text('embedding_id'), // Reference to Vectorize
+
+    // Context
+    metadata: text('metadata', { mode: 'json' }).default('{}'), // page, section, etc.
+
+    // Metadata
+    createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`CURRENT_TIMESTAMP`),
+}, (table) => ({
+    businessIdx: index('knowledge_base_business_idx').on(table.businessId),
+    documentIdx: index('knowledge_base_document_idx').on(table.sourceDocumentId),
+    embeddingIdx: index('knowledge_base_embedding_idx').on(table.embeddingId),
+}));
+
+/**
+ * Workflows table - Automation workflows
+ */
+export const workflows = sqliteTable('workflows', {
+    id: text('id').primaryKey(),
+    businessId: text('business_id').notNull().references(() => businesses.id, { onDelete: 'cascade' }),
+    createdByUserId: text('created_by_user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+
+    // Workflow Definition
+    name: text('name').notNull(),
+    description: text('description'),
+    triggerType: text('trigger_type', {
+        enum: ['webhook', 'schedule', 'manual', 'event']
+    }).notNull(),
+    triggerConfig: text('trigger_config', { mode: 'json' }).notNull(),
+
+    // Steps
+    steps: text('steps', { mode: 'json' }).notNull(), // Array of action objects
+
+    // Status
+    isActive: integer('is_active', { mode: 'boolean' }).default(true),
+
+    // Execution Info
+    lastRunAt: integer('last_run_at', { mode: 'timestamp' }),
+    totalRuns: integer('total_runs').default(0),
+    successfulRuns: integer('successful_runs').default(0),
+    failedRuns: integer('failed_runs').default(0),
+
+    // Metadata
+    createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`CURRENT_TIMESTAMP`),
+    updatedAt: integer('updated_at', { mode: 'timestamp' }).default(sql`CURRENT_TIMESTAMP`),
+}, (table) => ({
+    businessIdx: index('workflows_business_idx').on(table.businessId),
+    creatorIdx: index('workflows_creator_idx').on(table.createdByUserId),
+    activeIdx: index('workflows_active_idx').on(table.isActive),
+}));
+
+/**
+ * Workflow Runs table - Execution history
+ */
+export const workflowRuns = sqliteTable('workflow_runs', {
+    id: text('id').primaryKey(),
+    workflowId: text('workflow_id').notNull().references(() => workflows.id, { onDelete: 'cascade' }),
+
+    // Execution Details
+    status: text('status', {
+        enum: ['running', 'completed', 'failed', 'canceled']
+    }).notNull().default('running'),
+    triggerData: text('trigger_data', { mode: 'json' }),
+    executionLog: text('execution_log', { mode: 'json' }).default('[]'),
+    errorMessage: text('error_message'),
+
+    // Timing
+    startedAt: integer('started_at', { mode: 'timestamp' }).default(sql`CURRENT_TIMESTAMP`),
+    completedAt: integer('completed_at', { mode: 'timestamp' }),
+    durationMs: integer('duration_ms'),
+}, (table) => ({
+    workflowIdx: index('workflow_runs_workflow_idx').on(table.workflowId),
+    statusIdx: index('workflow_runs_status_idx').on(table.status),
+    startedAtIdx: index('workflow_runs_started_at_idx').on(table.startedAt),
+}));
+
+/**
+ * Integrations table - Third-party service connections
+ */
+export const integrations = sqliteTable('integrations', {
+    id: text('id').primaryKey(),
+    businessId: text('business_id').notNull().references(() => businesses.id, { onDelete: 'cascade' }),
+
+    // Provider Information
+    provider: text('provider', {
+        enum: ['quickbooks', 'stripe', 'google_calendar', 'outlook', 'gmail', 'slack',
+               'teams', 'shopify', 'woocommerce', 'salesforce', 'hubspot', 'twilio', 'sendgrid']
+    }).notNull(),
+    credentialsSecretId: text('credentials_secret_id').references(() => userSecrets.id),
+
+    // Configuration
+    config: text('config', { mode: 'json' }).default('{}'),
+
+    // Status
+    isActive: integer('is_active', { mode: 'boolean' }).default(true),
+    lastSyncAt: integer('last_sync_at', { mode: 'timestamp' }),
+    lastError: text('last_error'),
+
+    // Metadata
+    createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`CURRENT_TIMESTAMP`),
+    updatedAt: integer('updated_at', { mode: 'timestamp' }).default(sql`CURRENT_TIMESTAMP`),
+}, (table) => ({
+    businessProviderIdx: uniqueIndex('integrations_business_provider_idx').on(table.businessId, table.provider),
+    businessIdx: index('integrations_business_idx').on(table.businessId),
+    activeIdx: index('integrations_active_idx').on(table.isActive),
+}));
+
+/**
+ * Usage Tracking table - Track resource usage for billing and quotas
+ */
+export const usageTracking = sqliteTable('usage_tracking', {
+    id: text('id').primaryKey(),
+    businessId: text('business_id').references(() => businesses.id, { onDelete: 'cascade' }),
+    userId: text('user_id').references(() => users.id, { onDelete: 'cascade' }),
+
+    // Resource Information
+    resourceType: text('resource_type', {
+        enum: ['message', 'document', 'workflow_run', 'api_call', 'storage', 'vector_search']
+    }).notNull(),
+    resourceId: text('resource_id'),
+
+    // Usage Metrics
+    tokensUsed: integer('tokens_used'),
+    costCents: integer('cost_cents'), // For billing calculations
+
+    // Metadata
+    metadata: text('metadata', { mode: 'json' }).default('{}'),
+    createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`CURRENT_TIMESTAMP`),
+}, (table) => ({
+    businessIdx: index('usage_tracking_business_idx').on(table.businessId),
+    userIdx: index('usage_tracking_user_idx').on(table.userId),
+    resourceTypeIdx: index('usage_tracking_resource_type_idx').on(table.resourceType),
+    createdAtIdx: index('usage_tracking_created_at_idx').on(table.createdAt),
+}));
+
+/**
+ * Subscription Plans table - Business subscription details
+ */
+export const subscriptionPlans = sqliteTable('subscription_plans', {
+    id: text('id').primaryKey(),
+    businessId: text('business_id').notNull().references(() => businesses.id, { onDelete: 'cascade' }),
+
+    // Plan Details
+    planTier: text('plan_tier', {
+        enum: ['free', 'starter', 'professional', 'enterprise', 'reseller']
+    }).notNull(),
+    billingCycle: text('billing_cycle', { enum: ['monthly', 'annual'] }).notNull().default('monthly'),
+    priceCents: integer('price_cents').notNull(),
+
+    // Quotas
+    quotaMessages: integer('quota_messages').notNull(),
+    quotaDocuments: integer('quota_documents').notNull(),
+    quotaWorkflows: integer('quota_workflows').notNull(),
+    quotaStorage: integer('quota_storage'), // MB
+    quotaTeamMembers: integer('quota_team_members'),
+
+    // Features
+    features: text('features', { mode: 'json' }).default('[]'), // Array of feature flags
+
+    // Payment Information
+    stripeSubscriptionId: text('stripe_subscription_id'),
+    stripeCustomerId: text('stripe_customer_id'),
+
+    // Timing
+    startsAt: integer('starts_at', { mode: 'timestamp' }).default(sql`CURRENT_TIMESTAMP`),
+    endsAt: integer('ends_at', { mode: 'timestamp' }),
+    canceledAt: integer('canceled_at', { mode: 'timestamp' }),
+    cancelReason: text('cancel_reason'),
+
+    // Metadata
+    createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`CURRENT_TIMESTAMP`),
+    updatedAt: integer('updated_at', { mode: 'timestamp' }).default(sql`CURRENT_TIMESTAMP`),
+}, (table) => ({
+    businessIdx: index('subscription_plans_business_idx').on(table.businessId),
+    planTierIdx: index('subscription_plans_plan_tier_idx').on(table.planTier),
+    endsAtIdx: index('subscription_plans_ends_at_idx').on(table.endsAt),
+}));
+
+// ========================================
+// TYPE EXPORTS FOR BUSINESS AI PLATFORM
+// ========================================
+
+export type Business = typeof businesses.$inferSelect;
+export type NewBusiness = typeof businesses.$inferInsert;
+
+export type BusinessMember = typeof businessMembers.$inferSelect;
+export type NewBusinessMember = typeof businessMembers.$inferInsert;
+
+export type Conversation = typeof conversations.$inferSelect;
+export type NewConversation = typeof conversations.$inferInsert;
+
+export type Message = typeof messages.$inferSelect;
+export type NewMessage = typeof messages.$inferInsert;
+
+export type Document = typeof documents.$inferSelect;
+export type NewDocument = typeof documents.$inferInsert;
+
+export type KnowledgeBaseEntry = typeof knowledgeBaseEntries.$inferSelect;
+export type NewKnowledgeBaseEntry = typeof knowledgeBaseEntries.$inferInsert;
+
+export type Workflow = typeof workflows.$inferSelect;
+export type NewWorkflow = typeof workflows.$inferInsert;
+
+export type WorkflowRun = typeof workflowRuns.$inferSelect;
+export type NewWorkflowRun = typeof workflowRuns.$inferInsert;
+
+export type Integration = typeof integrations.$inferSelect;
+export type NewIntegration = typeof integrations.$inferInsert;
+
+export type UsageTracking = typeof usageTracking.$inferSelect;
+export type NewUsageTracking = typeof usageTracking.$inferInsert;
+
+export type SubscriptionPlan = typeof subscriptionPlans.$inferSelect;
+export type NewSubscriptionPlan = typeof subscriptionPlans.$inferInsert;

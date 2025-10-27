@@ -95,6 +95,30 @@
             {
                 "class_name": "DORateLimitStore",
                 "name": "DORateLimitStore"
+            },
+            {
+                "class_name": "ConversationAgent",
+                "name": "CONVERSATION_AGENT"
+            },
+            {
+                "class_name": "DocumentProcessorAgent",
+                "name": "DOCUMENT_PROCESSOR"
+            },
+            {
+                "class_name": "MarketingAgent",
+                "name": "MARKETING_AGENT"
+            },
+            {
+                "class_name": "CustomerServiceAgent",
+                "name": "CUSTOMER_SERVICE_AGENT"
+            },
+            {
+                "class_name": "DataAnalysisAgent",
+                "name": "DATA_ANALYSIS_AGENT"
+            },
+            {
+                "class_name": "WorkflowAgent",
+                "name": "WORKFLOW_AGENT"
             }
 		]
 	},
@@ -102,6 +126,11 @@
       {
         "binding": "TEMPLATES_BUCKET",
         "bucket_name": "magikvibez-production",
+        "remote": true
+      },
+      {
+        "binding": "DOCUMENTS_BUCKET",
+        "bucket_name": "magikvibez-documents",
         "remote": true
       }
     ],
@@ -125,6 +154,17 @@
                 "DORateLimitStore"
             ],
             "tag": "v2"
+        },
+        {
+            "new_sqlite_classes": [
+                "ConversationAgent",
+                "DocumentProcessorAgent",
+                "MarketingAgent",
+                "CustomerServiceAgent",
+                "DataAnalysisAgent",
+                "WorkflowAgent"
+            ],
+            "tag": "v3"
         }
 	],
 	"routes": [
